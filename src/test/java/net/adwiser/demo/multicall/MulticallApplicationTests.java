@@ -12,5 +12,4 @@ public class MulticallApplicationTests {
 	@Test
 	public void contextLoads() {
 	}
-
 }
