@@ -7,7 +7,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.concurrent.TimeUnit;
 
 @RestController
-@RequestMapping("/single-invocation")
+@RequestMapping("/single-invocation-timing")
 public class SingleInvocationTimingController {
 
     @RequestMapping("nominal")
