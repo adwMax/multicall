@@ -11,6 +11,7 @@ import org.springframework.web.client.RestTemplate;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
 
 @RestController
@@ -43,29 +44,34 @@ public class MultipleInvocationTimingController {
     }
 
     private void getSequentialInvocationResponse(MultipleInvocationRequest request) {
-        for (final Long singleInvocationDelay : request.getResponseDelaysMillis()) {
-            executeSingleInvocation(singleInvocationDelay);
+        try {
+            for (final Long singleInvocationDelay : request.getResponseDelaysMillis()) {
+                executeSingleInvocation(singleInvocationDelay).get();
+            }
+        } catch (Exception e) {
+            System.out.println(String.format("Something bad happened: %s", e.getMessage()));
+            ///TODO: add actual exception handling
         }
     }
 
     private void getParallelInvocationResponse(MultipleInvocationRequest request) {
         final Collection<CompletableFuture<Long>> responses = new ArrayList<>(request.getResponseDelaysMillis().size());
         for (final Long singleInvocationDelay : request.getResponseDelaysMillis()) {
-            final CompletableFuture<Long> singleInvocationResult = CompletableFuture.supplyAsync(() ->
-                    executeSingleInvocation(singleInvocationDelay)
-            );
+            final CompletableFuture<Long> singleInvocationResult = executeSingleInvocation(singleInvocationDelay);
             responses.add(singleInvocationResult);
         }
 
         responses.stream().map(CompletableFuture::join).mapToLong(Long::longValue).sum();
     }
 
-    private Long executeSingleInvocation(Long singleInvocationDelay) {
-        final RestTemplate restTemplate = new RestTemplate();
-        return restTemplate
-                .postForObject(
-                        "http://localhost:8080/single-invocation-timing",
-                        new SingleInvocationRequest().setDelay(singleInvocationDelay),
-                        Long.class);
+    private CompletableFuture<Long> executeSingleInvocation(Long singleInvocationDelay) {
+        return CompletableFuture.supplyAsync(() -> {
+            final RestTemplate restTemplate = new RestTemplate();
+            return restTemplate
+                    .postForObject(
+                            "http://localhost:8080/single-invocation-timing",
+                            new SingleInvocationRequest().setDelay(singleInvocationDelay),
+                            Long.class);
+        });
     }
 }
