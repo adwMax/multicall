@@ -1,15 +1,15 @@
-package net.adwiser.demo.multicall;
+package net.adwiser.demo.multicall.exchanges;
 
 import java.util.Collections;
 import java.util.List;
 
-public class InvocationResponse {
+public class MultipleInvocationResponse {
     private InvocationStyle invocationStyle;
     private long actualTotalInvocationTime;
     private long nominalTotalInvocationTime;
     private final List<Long> responseDelays;
 
-    public InvocationResponse(InvocationStyle invocationStyle, long actualTotalInvocationTime, long nominalTotalInvocationTime, List<Long> responseDelays) {
+    public MultipleInvocationResponse(InvocationStyle invocationStyle, long actualTotalInvocationTime, long nominalTotalInvocationTime, List<Long> responseDelays) {
         this.invocationStyle = invocationStyle;
         this.actualTotalInvocationTime = actualTotalInvocationTime;
         this.nominalTotalInvocationTime = nominalTotalInvocationTime;

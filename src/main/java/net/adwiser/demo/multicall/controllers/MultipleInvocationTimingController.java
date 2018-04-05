@@ -1,14 +1,13 @@
 package net.adwiser.demo.multicall.controllers;
 
-import net.adwiser.demo.multicall.InvocationRequest;
-import net.adwiser.demo.multicall.InvocationResponse;
+import net.adwiser.demo.multicall.exchanges.MultipleInvocationRequest;
+import net.adwiser.demo.multicall.exchanges.MultipleInvocationResponse;
+import net.adwiser.demo.multicall.exchanges.SingleInvocationRequest;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.client.RestTemplate;
-import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
-import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.concurrent.CompletableFuture;
@@ -17,7 +16,7 @@ import java.util.concurrent.CompletableFuture;
 public class MultipleInvocationTimingController {
 
     @PostMapping(value = "/multiple-invocation-timing")
-    public InvocationResponse executeMultipleInvocations(@RequestBody InvocationRequest request) {
+    public MultipleInvocationResponse executeMultipleInvocations(@RequestBody MultipleInvocationRequest request) {
         switch (request.getInvocationStyle()) {
             case SEQUENTIAL:
                 return getSequentialInvocationResponse(request);
@@ -28,32 +27,39 @@ public class MultipleInvocationTimingController {
         }
     }
 
-    private InvocationResponse getSequentialInvocationResponse(@RequestBody InvocationRequest request) {
-        long totalActualInvocationDelay = 0L;
-        long totalNominalInvocationDelay = 0L;
+    private MultipleInvocationResponse getSequentialInvocationResponse(@RequestBody MultipleInvocationRequest request) {
+        long invocationStartTime = System.currentTimeMillis();
+        final Collection<Long> responses = new ArrayList<>(request.getResponseDelaysMillis().size());
+
         for (final Long singleInvocationDelay : request.getResponseDelaysMillis()) {
             final RestTemplate restTemplate = new RestTemplate();
-            final URI uri = URI.create(String.format("http://localhost:8080/single-invocation-timing/nominal?responseDelayMillis=%s", singleInvocationDelay));
-            long invocationStartTime = System.currentTimeMillis();
-            final Long nominalSingleInvocationDelay = restTemplate.getForObject(uri, Long.class);
-            long actualSingleInvocationTime = System.currentTimeMillis() - invocationStartTime;
-            totalNominalInvocationDelay += nominalSingleInvocationDelay;
-            totalActualInvocationDelay += actualSingleInvocationTime;
+            final Long nominalSingleInvocationDelay = restTemplate
+                    .postForObject(
+                            "http://localhost:8080/single-invocation-timing",
+                            new SingleInvocationRequest().setDelay(singleInvocationDelay),
+                            Long.class);
+            responses.add(nominalSingleInvocationDelay);
         }
-        return new InvocationResponse(request.getInvocationStyle(),
+        long totalActualInvocationDelay = System.currentTimeMillis() - invocationStartTime;
+        long totalNominalInvocationDelay = responses.stream()
+                .mapToLong(Long::longValue)
+                .sum();
+        return new MultipleInvocationResponse(request.getInvocationStyle(),
                 totalActualInvocationDelay, totalNominalInvocationDelay, request.getResponseDelaysMillis());
     }
 
-    private InvocationResponse getParallelInvocationResponse(@RequestBody InvocationRequest request) {
+    private MultipleInvocationResponse getParallelInvocationResponse(@RequestBody MultipleInvocationRequest request) {
         long invocationStartTime = System.currentTimeMillis();
         final Collection<CompletableFuture<Long>> responses = new ArrayList<>(request.getResponseDelaysMillis().size());
 
         for (final Long singleInvocationDelay : request.getResponseDelaysMillis()) {
-            long delay = singleInvocationDelay;
             final CompletableFuture<Long> singleInvocationResult = CompletableFuture.supplyAsync(() -> {
                 final RestTemplate restTemplate = new RestTemplate();
-                final URI uri = URI.create(String.format("http://localhost:8080/single-invocation-timing/nominal?responseDelayMillis=%s", delay));
-                return restTemplate.getForObject(uri, Long.class);
+                return restTemplate
+                        .postForObject(
+                                "http://localhost:8080/single-invocation-timing",
+                                new SingleInvocationRequest().setDelay(singleInvocationDelay),
+                                Long.class);
             });
             responses.add(singleInvocationResult);
         }
@@ -62,7 +68,7 @@ public class MultipleInvocationTimingController {
                 .mapToLong(Long::longValue)
                 .sum();
         long totalActualInvocationDelay = System.currentTimeMillis() - invocationStartTime;
-        return new InvocationResponse(request.getInvocationStyle(),
+        return new MultipleInvocationResponse(request.getInvocationStyle(),
                 totalActualInvocationDelay, totalNominalInvocationDelay, request.getResponseDelaysMillis());
     }
 }

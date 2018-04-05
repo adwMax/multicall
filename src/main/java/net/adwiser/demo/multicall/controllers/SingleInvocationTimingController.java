@@ -1,19 +1,18 @@
 package net.adwiser.demo.multicall.controllers;
 
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.ResponseBody;
-import org.springframework.web.bind.annotation.RestController;
+import net.adwiser.demo.multicall.exchanges.SingleInvocationRequest;
+import org.springframework.web.bind.annotation.*;
 
+import javax.validation.constraints.NotNull;
 import java.util.concurrent.TimeUnit;
 
 @RestController
-@RequestMapping("/single-invocation-timing")
 public class SingleInvocationTimingController {
 
-    @RequestMapping("nominal")
-    public @ResponseBody
-    Long getNominalTimingValue(Long responseDelayMillis) throws InterruptedException {
-        long delay = responseDelayMillis != null ? responseDelayMillis : 0;
+    @PostMapping(value = "/single-invocation-timing")
+    public long getNominalTimingValue(@RequestBody SingleInvocationRequest request) throws InterruptedException {
+        long delay = request.getDelay();
+        System.out.println(String.format("single invocation nominal delay: %s", delay));
         TimeUnit.MILLISECONDS.sleep(delay);
         return delay;
     }

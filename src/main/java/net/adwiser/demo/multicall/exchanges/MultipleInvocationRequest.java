@@ -1,16 +1,16 @@
-package net.adwiser.demo.multicall;
+package net.adwiser.demo.multicall.exchanges;
 
 import java.util.Collections;
 import java.util.List;
 
-public class InvocationRequest {
+public class MultipleInvocationRequest {
     private InvocationStyle invocationStyle;
     private List<Long> responseDelaysMillis;
 
-    public InvocationRequest() {
+    public MultipleInvocationRequest() {
     }
 
-    public InvocationRequest(InvocationStyle invocationStyle, List<Long> responseDelaysMillis) {
+    public MultipleInvocationRequest(InvocationStyle invocationStyle, List<Long> responseDelaysMillis) {
         this.invocationStyle = invocationStyle;
         this.responseDelaysMillis = Collections.unmodifiableList(responseDelaysMillis);
     }
