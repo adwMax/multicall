@@ -11,6 +11,7 @@ import org.springframework.web.client.RestTemplate;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Consumer;
 
 @RestController
 public class MultipleInvocationTimingController {
@@ -19,56 +20,52 @@ public class MultipleInvocationTimingController {
     public MultipleInvocationResponse executeMultipleInvocations(@RequestBody MultipleInvocationRequest request) {
         switch (request.getInvocationStyle()) {
             case SEQUENTIAL:
-                return getSequentialInvocationResponse(request);
+                return measureInvocations(request, this::getSequentialInvocationResponse);
             case PARALLEL:
-                return getParallelInvocationResponse(request);
+                return measureInvocations(request, this::getParallelInvocationResponse);
             default:
                 throw new UnsupportedOperationException("Unsupported invocation style: " + request.getInvocationStyle());
         }
     }
 
-    private MultipleInvocationResponse getSequentialInvocationResponse(@RequestBody MultipleInvocationRequest request) {
+    private MultipleInvocationResponse measureInvocations(MultipleInvocationRequest request,
+                                                          Consumer<MultipleInvocationRequest> consumer) {
         long invocationStartTime = System.currentTimeMillis();
-        final Collection<Long> responses = new ArrayList<>(request.getResponseDelaysMillis().size());
 
-        for (final Long singleInvocationDelay : request.getResponseDelaysMillis()) {
-            final RestTemplate restTemplate = new RestTemplate();
-            final Long nominalSingleInvocationDelay = restTemplate
-                    .postForObject(
-                            "http://localhost:8080/single-invocation-timing",
-                            new SingleInvocationRequest().setDelay(singleInvocationDelay),
-                            Long.class);
-            responses.add(nominalSingleInvocationDelay);
-        }
+        consumer.accept(request);
+
         long totalActualInvocationDelay = System.currentTimeMillis() - invocationStartTime;
-        long totalNominalInvocationDelay = responses.stream()
-                .mapToLong(Long::longValue)
+        long totalNominalInvocationDelay = request.getResponseDelaysMillis().stream()
+                .mapToLong(e -> e)
                 .sum();
         return new MultipleInvocationResponse(request.getInvocationStyle(),
                 totalActualInvocationDelay, totalNominalInvocationDelay, request.getResponseDelaysMillis());
     }
 
-    private MultipleInvocationResponse getParallelInvocationResponse(@RequestBody MultipleInvocationRequest request) {
-        long invocationStartTime = System.currentTimeMillis();
-        final Collection<CompletableFuture<Long>> responses = new ArrayList<>(request.getResponseDelaysMillis().size());
-
+    private void getSequentialInvocationResponse(MultipleInvocationRequest request) {
         for (final Long singleInvocationDelay : request.getResponseDelaysMillis()) {
-            final CompletableFuture<Long> singleInvocationResult = CompletableFuture.supplyAsync(() -> {
-                final RestTemplate restTemplate = new RestTemplate();
-                return restTemplate
-                        .postForObject(
-                                "http://localhost:8080/single-invocation-timing",
-                                new SingleInvocationRequest().setDelay(singleInvocationDelay),
-                                Long.class);
-            });
+            executeSingleInvocation(singleInvocationDelay);
+        }
+    }
+
+    private void getParallelInvocationResponse(MultipleInvocationRequest request) {
+        final Collection<CompletableFuture<Long>> responses = new ArrayList<>(request.getResponseDelaysMillis().size());
+        for (final Long singleInvocationDelay : request.getResponseDelaysMillis()) {
+            final CompletableFuture<Long> singleInvocationResult = CompletableFuture.supplyAsync(() ->
+                    executeSingleInvocation(singleInvocationDelay)
+            );
             responses.add(singleInvocationResult);
         }
-        long totalNominalInvocationDelay = responses.stream()
-                .map(CompletableFuture::join)
-                .mapToLong(Long::longValue)
-                .sum();
-        long totalActualInvocationDelay = System.currentTimeMillis() - invocationStartTime;
-        return new MultipleInvocationResponse(request.getInvocationStyle(),
-                totalActualInvocationDelay, totalNominalInvocationDelay, request.getResponseDelaysMillis());
+
+        responses.stream().map(CompletableFuture::join).mapToLong(Long::longValue).sum();
+    }
+
+    private Long executeSingleInvocation(Long singleInvocationDelay) {
+        final RestTemplate restTemplate = new RestTemplate();
+        return restTemplate
+                .postForObject(
+                        "http://localhost:8080/single-invocation-timing",
+                        new SingleInvocationRequest().setDelay(singleInvocationDelay),
+                        Long.class);
     }
 }
