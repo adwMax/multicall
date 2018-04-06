@@ -11,10 +11,10 @@ import org.springframework.web.client.RestTemplate;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
 
 @RestController
+@SuppressWarnings("unused")
 public class MultipleInvocationTimingController {
 
     @PostMapping(value = "/multiple-invocation-timing")
@@ -46,25 +46,28 @@ public class MultipleInvocationTimingController {
     private void getSequentialInvocationResponse(MultipleInvocationRequest request) {
         try {
             for (final Long singleInvocationDelay : request.getResponseDelaysMillis()) {
-                executeSingleInvocation(singleInvocationDelay).get();
+                executeSingleInvocationAsync(singleInvocationDelay).get();
             }
-        } catch (Exception e) {
-            System.out.println(String.format("Something bad happened: %s", e.getMessage()));
-            ///TODO: add actual exception handling
+        }
+        catch (Exception e) {
+            throw new ApplicationException("Error invoking sequentially: ", e);
         }
     }
 
     private void getParallelInvocationResponse(MultipleInvocationRequest request) {
-        final Collection<CompletableFuture<Long>> responses = new ArrayList<>(request.getResponseDelaysMillis().size());
-        for (final Long singleInvocationDelay : request.getResponseDelaysMillis()) {
-            final CompletableFuture<Long> singleInvocationResult = executeSingleInvocation(singleInvocationDelay);
-            responses.add(singleInvocationResult);
+        try {
+            final Collection<CompletableFuture<Long>> responses = new ArrayList<>(request.getResponseDelaysMillis().size());
+            for (final Long singleInvocationDelay : request.getResponseDelaysMillis()) {
+                final CompletableFuture<Long> singleInvocationResult = executeSingleInvocationAsync(singleInvocationDelay);
+                responses.add(singleInvocationResult);
+            }
+            CompletableFutureUtils.sequence(responses).get();
+        } catch (Exception e) {
+            throw new ApplicationException("Error invoking in parallel: ", e);
         }
-
-        responses.stream().map(CompletableFuture::join).mapToLong(Long::longValue).sum();
     }
 
-    private CompletableFuture<Long> executeSingleInvocation(Long singleInvocationDelay) {
+    private CompletableFuture<Long> executeSingleInvocationAsync(Long singleInvocationDelay) {
         return CompletableFuture.supplyAsync(() -> {
             final RestTemplate restTemplate = new RestTemplate();
             return restTemplate
@@ -73,5 +76,11 @@ public class MultipleInvocationTimingController {
                             new SingleInvocationRequest().setDelay(singleInvocationDelay),
                             Long.class);
         });
+    }
+
+    public static class ApplicationException extends RuntimeException {
+        ApplicationException(String msg, Throwable t) {
+            super(msg, t);
+        }
     }
 }

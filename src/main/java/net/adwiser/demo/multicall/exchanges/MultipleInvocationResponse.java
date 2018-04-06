@@ -3,8 +3,9 @@ package net.adwiser.demo.multicall.exchanges;
 import java.util.Collections;
 import java.util.List;
 
+@SuppressWarnings("unused")
 public class MultipleInvocationResponse {
-    private InvocationStyle invocationStyle;
+    private final InvocationStyle invocationStyle;
     private long actualTotalInvocationTime;
     private long nominalTotalInvocationTime;
     private final List<Long> responseDelays;
